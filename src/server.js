@@ -17,19 +17,31 @@ const connection = new Pool({
 });
 
 const nameSchema = joi.object({
-  name: joi.string().min(1),
+  name: joi.string().min(1).required(),
 });
 
 const gameSchema = joi.object({
-  name: joi.string().min(1),
-  image: joi.string(),
-  stockTotal: joi.number().integer().min(1),
-  categoryId: joi.number().integer().min(1),
-  pricePerDay: joi.number(),
+  name: joi.string().min(1).required(),
+  image: joi.string().required(),
+  stockTotal: joi.number().integer().min(1).required(),
+  categoryId: joi.number().integer().min(1).required(),
+  pricePerDay: joi.number().required(),
+});
+
+const customerSchema = joi.object({
+  name: joi.string().min(1).required(),
+  phone: joi.number().min(11).required(),
+  cpf: joi.string().min(10).required(),
+  birthday: joi.number(),
 });
 app.get("/categories", async (req, res) => {
-  const categories = await connection.query(`SELECT * FROM categories`);
-  res.send(categories.rows);
+  try {
+    const categories = await connection.query(`SELECT * FROM categories`);
+    res.send(categories.rows);
+  } catch (err) {
+    console.log(err);
+    return res.sendStatus(500);
+  }
 });
 
 app.post("/categories", async (req, res) => {
@@ -55,12 +67,18 @@ app.post("/categories", async (req, res) => {
     res.status(201).send(`Categoria ${name} Criada`);
   } catch (err) {
     console.log(err);
+    return res.sendStatus(500);
   }
 });
 
 app.get("/games", async (req, res) => {
-  const games = await connection.query(`SELECT * FROM games`);
-  res.send(games.rows);
+  try {
+    const games = await connection.query(`SELECT * FROM games`);
+    res.send(games.rows);
+  } catch (err) {
+    console.log(err);
+    return res.sendStatus(500);
+  }
 });
 
 app.post("/games", async (req, res) => {
@@ -72,7 +90,7 @@ app.post("/games", async (req, res) => {
     categoryId,
     pricePerDay,
   };
-  
+
   const validation = gameSchema.validate(newGame, { abortEarly: false });
   if (validation.error) {
     const error = validation.error.details.map((d) => d.message);
@@ -99,11 +117,18 @@ app.post("/games", async (req, res) => {
       `INSERT INTO games (name, image, "stockTotal", "categoryId", "pricePerDay") VALUES ($1, $2, $3, $4, $5)`,
       [name, image, stockTotal, categoryId, pricePerDay]
     );
-  
   } catch (err) {
     console.log(err);
+    return res.sendStatus(500);
   }
   res.status(201).send(`${name} cadastrado com sucesso`);
 });
 
+app.get("/customers", async (req, res) => {
+  try {
+  } catch (err) {
+    console.log(err);
+    return res.sendStatus(500);
+  }
+});
 app.listen(port, () => console.log(`app runing in port ${port}`));
