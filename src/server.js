@@ -143,6 +143,26 @@ app.get("/customers", async (req, res) => {
   }
 });
 
+app.get("/customers/:id", async (req, res) => {
+  const { id } = req.params;
+  console.log(id);
+
+  try {
+    const customerId = await connection.query(
+      `SELECT * FROM customers WHERE id= $1`,
+      [id]
+    );
+    if (!customerId.rows[0]) {
+      res.status(404).send("Id do cliente não encontrado");
+    }
+    res.status(200).send(customerId.rows[0]);
+  } catch (err) {
+    console.log(err)
+    return res.sendStatus(500);
+  }
+
+});
+
 app.post("/customers", async (req, res) => {
   const { name, phone, cpf, birthday } = req.body;
   const newCustomer = {
@@ -173,6 +193,7 @@ app.post("/customers", async (req, res) => {
       `INSERT INTO customers (name,phone,cpf,birthday) VALUES($1,$2,$3,$4)`,
       [name, phone, cpf, birthday]
     );
+
     res.status(201).send("Cliente adicionado com sucesso");
   } catch (err) {
     console.log(err);
