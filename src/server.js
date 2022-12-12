@@ -30,10 +30,11 @@ const gameSchema = joi.object({
 
 const customerSchema = joi.object({
   name: joi.string().min(1).required(),
-  phone: joi.number().min(11).required(),
-  cpf: joi.string().min(10).required(),
-  birthday: joi.number(),
+  phone: joi.string().min(10).max(11).required(),
+  cpf: joi.string().min(11).max(11),
+  birthday: joi.string().isoDate().required(),
 });
+
 app.get("/categories", async (req, res) => {
   try {
     const categories = await connection.query(`SELECT * FROM categories`);
@@ -125,10 +126,56 @@ app.post("/games", async (req, res) => {
 });
 
 app.get("/customers", async (req, res) => {
+  const { cpf } = req.query;
   try {
+    if (!cpf) {
+      const customers = await connection.query(`SELECT * FROM customers`);
+      res.status(200).send(customers.rows);
+    }
+    const customersCPF = await connection.query(
+      `SELECT * FROM customers WHERE cpf =$1`,
+      [cpf]
+    );
+    res.status(201).send(customersCPF.rows);
   } catch (err) {
     console.log(err);
     return res.sendStatus(500);
+  }
+});
+
+app.post("/customers", async (req, res) => {
+  const { name, phone, cpf, birthday } = req.body;
+  const newCustomer = {
+    name,
+    phone,
+    cpf,
+    birthday,
+  };
+
+  const validation = customerSchema.validate(newCustomer, {
+    abortEarly: false,
+  });
+  if (validation.error) {
+    const error = validation.error.details.map((d) => d.message);
+    return res.status(422).send(error);
+  }
+  try {
+    const cpfExist = await connection.query(
+      `SELECT (cpf) FROM customers WHERE cpf = $1`,
+      [cpf]
+    );
+
+    if (cpfExist.rows[0]) {
+      return res.status(409).send("CPF já cadastrado");
+    }
+
+    await connection.query(
+      `INSERT INTO customers (name,phone,cpf,birthday) VALUES($1,$2,$3,$4)`,
+      [name, phone, cpf, birthday]
+    );
+    res.status(201).send("Cliente adicionado com sucesso");
+  } catch (err) {
+    console.log(err);
   }
 });
 app.listen(port, () => console.log(`app runing in port ${port}`));
