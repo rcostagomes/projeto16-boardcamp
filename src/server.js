@@ -431,5 +431,23 @@ app.post("/rentals/:id/return", async (req, res) => {
   }
 });
 
+app.delete("/rentals/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const idExist = await connection.query(`SELECT * FROM rentals WHERE id=$1`, [
+    id,
+  ]);
+
+  if (!idExist.rows[0]) {
+    return res.status(404).send("Id não encontrado");
+  }
+
+  if (idExist.rows[0].returnDate !== null) {
+    return res.sendStatus(400);
+  }
+
+  await connection.query(`DELETE FROM rentals WHERE id=$1`, [id]);
+  res.sendStatus(200);
+});
 
 app.listen(port, () => console.log(`app runing in port ${port}`));
