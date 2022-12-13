@@ -133,10 +133,9 @@ app.get("/customers", async (req, res) => {
       res.status(200).send(customers.rows);
     }
     const customersCPF = await connection.query(
-      `SELECT * FROM customers WHERE cpf =$1`,
-      [cpf]
+      `SELECT * FROM customers WHERE cpf ILIKE '${cpf}%'`,
     );
-    res.status(201).send(customersCPF.rows);
+    res.status(200).send(customersCPF.rows);
   } catch (err) {
     console.log(err);
     return res.sendStatus(500);
