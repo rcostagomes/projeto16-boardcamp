@@ -133,7 +133,7 @@ app.get("/customers", async (req, res) => {
       res.status(200).send(customers.rows);
     }
     const customersCPF = await connection.query(
-      `SELECT * FROM customers WHERE cpf ILIKE '${cpf}%'`,
+      `SELECT * FROM customers WHERE cpf ILIKE '${cpf}%'`
     );
     res.status(200).send(customersCPF.rows);
   } catch (err) {
@@ -156,10 +156,9 @@ app.get("/customers/:id", async (req, res) => {
     }
     res.status(200).send(customerId.rows[0]);
   } catch (err) {
-    console.log(err)
+    console.log(err);
     return res.sendStatus(500);
   }
-
 });
 
 app.post("/customers", async (req, res) => {
@@ -198,4 +197,43 @@ app.post("/customers", async (req, res) => {
     console.log(err);
   }
 });
+
+app.put("/customers/:id", async (req, res) => {
+  const { name, phone, cpf, birthday } = req.body;
+  const {id}= req.params;
+  console.log(id)
+  const attCustomer = {
+    name,
+    phone,
+    cpf,
+    birthday,
+  };
+
+  const validation = customerSchema.validate(attCustomer , {
+    abortEarly: false,
+  });
+  if (validation.error) {
+    const error = validation.error.details.map((d) => d.message);
+    return res.status(422).send(error);
+  }
+  try {
+    const cpfExist = await connection.query(
+      `SELECT (cpf) FROM customers WHERE cpf = $1`,
+      [cpf]
+    );
+
+    if (cpfExist.rows[0]) {
+      return res.status(409).send("CPF já cadastrado");
+    }
+
+    await connection.query(
+      `UPDATE customers SET name=$1, phone=$2, cpf=$3, birthday=$4 WHERE id=${id}`,
+      [name, phone, cpf, birthday]
+    );
+
+    res.status(201).send("Cliente atualizado com sucesso");
+  } catch (err) {
+  console.log(err);
+}});
+
 app.listen(port, () => console.log(`app runing in port ${port}`));
