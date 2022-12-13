@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import pkg from "pg";
 import joi from "joi";
+import dayjs from "dayjs";
 
 const app = express();
 app.use(express.json());
@@ -33,6 +34,12 @@ const customerSchema = joi.object({
   phone: joi.string().min(10).max(11).required(),
   cpf: joi.string().min(11).max(11),
   birthday: joi.string().isoDate().required(),
+});
+
+const rentalsSchema = joi.object({
+  customerId: joi.number().min(1).required(),
+  gameId: joi.number().min(1).required(),
+  daysRented: joi.number().min(1).required(),
 });
 
 app.get("/categories", async (req, res) => {
@@ -200,8 +207,8 @@ app.post("/customers", async (req, res) => {
 
 app.put("/customers/:id", async (req, res) => {
   const { name, phone, cpf, birthday } = req.body;
-  const {id}= req.params;
-  console.log(id)
+  const { id } = req.params;
+  console.log(id);
   const attCustomer = {
     name,
     phone,
@@ -209,7 +216,7 @@ app.put("/customers/:id", async (req, res) => {
     birthday,
   };
 
-  const validation = customerSchema.validate(attCustomer , {
+  const validation = customerSchema.validate(attCustomer, {
     abortEarly: false,
   });
   if (validation.error) {
@@ -233,7 +240,151 @@ app.put("/customers/:id", async (req, res) => {
 
     res.status(201).send("Cliente atualizado com sucesso");
   } catch (err) {
-  console.log(err);
-}});
+    console.log(err);
+  }
+});
+
+app.get("/rentals", async (req, res) => {
+  const { customerId, gameId } = req.query;
+  try {
+    if (customerId) {
+      const customerIdExist = await connection.query(
+        `SELECT * FROM rentals WHERE "customerID" = $1`,
+        [customerId]
+      );
+      return res.status(200).send(customerIdExist.rows);
+    }
+
+    if (gameId) {
+      const gameIdExist = await connection.query(
+        `SELECT * FROM rentals WHERE "gameId" = $1`,
+        [gameId]
+      );
+      return res.status(200).send(gameIdExist.rows);
+    }
+
+    const rentals =
+      await connection.query(`SELECT rentals.*, customers.id AS "idCustomer", 
+    customers.name AS "nameCustomer", 
+    games.id AS 
+    "idGame", games.name AS "gameName", 
+    games."categoryId" AS 
+    "categoryIdGame", categories.name AS "categoryName" FROM rentals
+      JOIN 
+    customers ON rentals."customerId" = customers.id 
+      JOIN 
+    games ON rentals."gameId" = games.id 
+      JOIN 
+    categories ON games."categoryId" = categories.id;
+  `);
+    const allRents = rentals.rows.map((el) => {
+      const {
+        id,
+        customerId,
+        gameId,
+        rentDate,
+        daysRented,
+        returnDate,
+        originalPrice,
+        delayFee,
+        idCustomer,
+        nameCustomer,
+        idGame,
+        gameName,
+        categoryIdGame,
+        categoryName,
+      } = el;
+      console.log(delayFee)
+      console.log(returnDate)
+      return {
+        id: id,
+        customerId: customerId,
+        gameId: gameId,
+        rentDate: rentDate,
+        daysRented: daysRented,
+        returnDate: returnDate,
+        originalPrice: originalPrice,
+        delayFee: delayFee,
+        customer: {
+          id: idCustomer,
+          name: nameCustomer,
+        },
+        game: {
+          id: idGame,
+          name: gameName,
+          categoryId: categoryIdGame,
+          categoryName: categoryName,
+        },
+      };
+    });
+
+    res.status(200).send(allRents);
+  } catch (err) {
+    console.log(err);
+    return res.sendStatus(500);
+  }
+});
+
+app.post("/rentals", async (req, res) => {
+  const { customerId, gameId, daysRented } = req.body;
+  const now = dayjs().format("YYYY-MM-DD");
+  console.log(now);
+  const newRentals = {
+    customerId,
+    gameId,
+    daysRented,
+  };
+  const validation = rentalsSchema.validate(newRentals, { abortEarly: false });
+  if (validation.error) {
+    const error = validation.error.details.map((d) => d.message);
+    return res.status(422).send(error);
+  }
+
+  try {
+    const pricePerDay = await connection.query(
+      `SELECT "pricePerDay" FROM games WHERE id=$1`,
+      [gameId]
+    );
+    console.log("pricePerDay", pricePerDay.rows[0]);
+
+    const originalPrice = pricePerDay.rows[0].pricePerDay * daysRented;
+    console.log("originalPrice", originalPrice);
+
+    const customerExist = await connection.query(
+      `SELECT (id) FROM customers WHERE id=$1`,
+      [customerId]
+    );
+
+    if (!customerExist.rows[0]) {
+      return res.status(400).send("Cliente não existente");
+    }
+
+    const gameExist = await connection.query(
+      `SELECT (id) FROM games WHERE id=$1`,
+      [gameId]
+    );
+
+    if (!gameExist.rows[0]) {
+      return res.status(400).send("Jogo não encontrado");
+    }
+
+    if (daysRented <= 1) {
+      console.log(daysRented);
+      return res.sendStatus(400);
+    }
+    const teste = await connection.query(
+      `INSERT INTO 
+    rentals 
+    ("customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee") 
+      VALUES($1, $2, $3, $4, $5, $6, $7)
+    `,
+      [customerId, gameId, now, daysRented, null, originalPrice, null,]
+    );
+    res.status(201).send(teste);
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
+  }
+});
 
 app.listen(port, () => console.log(`app runing in port ${port}`));
