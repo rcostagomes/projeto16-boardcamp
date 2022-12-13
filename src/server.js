@@ -294,8 +294,7 @@ app.get("/rentals", async (req, res) => {
         categoryIdGame,
         categoryName,
       } = el;
-      console.log(delayFee)
-      console.log(returnDate)
+
       return {
         id: id,
         customerId: customerId,
@@ -328,7 +327,6 @@ app.get("/rentals", async (req, res) => {
 app.post("/rentals", async (req, res) => {
   const { customerId, gameId, daysRented } = req.body;
   const now = dayjs().format("YYYY-MM-DD");
-  console.log(now);
   const newRentals = {
     customerId,
     gameId,
@@ -378,13 +376,60 @@ app.post("/rentals", async (req, res) => {
     ("customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee") 
       VALUES($1, $2, $3, $4, $5, $6, $7)
     `,
-      [customerId, gameId, now, daysRented, null, originalPrice, null,]
+      [customerId, gameId, now, daysRented, null, originalPrice, null]
     );
-    res.status(201).send(teste);
+    res.status(201).send("Aluguel inserido");
   } catch (err) {
     console.log(err);
     res.sendStatus(500);
   }
 });
+
+app.post("/rentals/:id/return", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const time = new Date();
+
+  try {
+    const rental = await connection.query(
+      `SELECT rentals.*, games."pricePerDay" 
+    FROM 
+    rentals 
+    JOIN games 
+    ON rentals."gameId" = games.id 
+    WHERE rentals.id=$1`,
+      [id]
+    );
+    if (rental.rows.length === 0) {
+      return res.sendStatus(404);
+    }
+    if (rental.rows[0].returnDate !== null) {
+      return res.sendStatus(400);
+    }
+
+    const delivery = rental.rows[0].rentDate;
+    const diff = Math.abs(time.getTime() - delivery.getTime());
+    const Days = Math.ceil(diff / (1000 * 3600 * 24));
+
+    if (Days > rental.rows[0].daysRented) {
+      const newDelayFee =
+        Days * rental.rows[0].pricePerDay +
+        rental.rows[0].originalPrice;
+      await connection.query(
+        `UPDATE rentals SET "returnDate"=$1, "delayFee"=$2, WHERE id=$3`,
+        [time, newDelayFee, id]
+      );
+    }
+
+    await connection.query(
+      `UPDATE rentals SET "returnDate"=$1, "delayFee"=$2 WHERE id=$3`,
+      [time, null, id]
+    );
+    res.sendStatus(200);
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
+  }
+});
+
 
 app.listen(port, () => console.log(`app runing in port ${port}`));
